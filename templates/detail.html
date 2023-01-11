@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block container %}
+  <div class="row">
+    <h1>{{ transformer.name }}</h1>
+    <h2>Спонсорские товары</h2>
+    {% for product in transformer.products %}
+      <div class="col-3">
+        <a href="{{ product.url }}" target="_blank">
+          <div class="card">
+            <img src="{{ product.image_path }}" class="card-img-top" alt="{{ product.name }}">
+            <div class="card-body">
+              <h5 class="card-title">{{ product.name }}</h5>
+            </div>
+          </div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock container %}

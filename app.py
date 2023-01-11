@@ -45,7 +45,7 @@ class Transformation(db.Model):
 class TransformerType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, unique=True, nullable=False)
-    transformer_id = db.relationship('Transformer', backref='types', lazy=True)
+    transformers = db.relationship('Transformer', backref='types', lazy=True)
 
     def __repr__(self):
         return self.name
@@ -63,10 +63,26 @@ class Transformer(db.Model):
         lazy='subquery',
         backref=db.backref('transformers', lazy=True)
     )
+    products = db.relationship('Product', backref='transformers', lazy=True)
 
     @property
     def image_path(self):
-        return f'{app.config["MEDIA_PATH"]}/{self.image}'
+        return f'/{app.config["MEDIA_PATH"]}/{self.image}'
+
+    def __repr__(self):
+        return self.name
+
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, unique=True, nullable=False)
+    image = db.Column(db.String, nullable=False)
+    url = db.Column(db.String, nullable=False)
+    transformer = db.Column(db.Integer, db.ForeignKey('transformer.id'), nullable=False)
+
+    @property
+    def image_path(self):
+        return f'/{app.config["MEDIA_PATH"]}/{self.image}'
 
     def __repr__(self):
         return self.name
@@ -91,9 +107,20 @@ class ImageView(sqla.ModelView):
 
 
 @app.route('/')
-def transformers_list():  # put application's code here
+def get_transformer_list():  # put application's code here
     transformers = db.session.execute(db.select(Transformer)).scalars()
     return render_template('index.html', transformers=transformers)
+
+
+@app.route("/transformers/<int:transformer_id>")
+def get_transformer_detail(transformer_id):
+    transformer = db.get_or_404(Transformer, transformer_id)
+    return render_template("detail.html", transformer=transformer)
+
+
+@app.route("/contacts")
+def get_contacts():
+    return render_template("contacts.html")
 
 
 @app.route('/media/<path:filename>')
@@ -102,8 +129,14 @@ def media(filename):
 
 
 admin.add_view(ImageView(Transformer, db.session))
+admin.add_view(ImageView(Product, db.session))
 admin.add_view(sqla.ModelView(Transformation, db.session))
 admin.add_view(sqla.ModelView(TransformerType, db.session))
+
+
+@app.cli.command("collect-data")
+def collect_transformers_data():
+    pass
 
 
 if __name__ == '__main__':
