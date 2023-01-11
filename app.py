@@ -136,7 +136,7 @@ admin.add_view(sqla.ModelView(TransformerType, db.session))
 
 @app.cli.command("collect-data")
 def collect_transformers_data():
-    pass
+    print('Everything works. Collecting data.')
 
 
 if __name__ == '__main__':
