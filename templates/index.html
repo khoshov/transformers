@@ -2,8 +2,11 @@
 
 {% block container %}
   <div class="row">
+    {% if request.args.get('name') %}
+      <h2>Результаты поиска по запросу: {{ request.args.get('name') }}</h2>
+    {% endif %}
     {% for transformer in transformers %}
-      <div class="col-3">
+      <div class="col-3 mt-3">
         <a href="{{ url_for('get_transformer_detail', transformer_id=transformer.id) }}">
           <div class="card">
             <img src="{{ transformer.image_path }}" class="card-img-top" alt="{{ transformer.name }}">

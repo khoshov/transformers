@@ -1,27 +1,25 @@
-from flask import Flask, render_template, send_from_directory, url_for
-from flask_admin.contrib import sqla
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 import os.path
-from flask_admin import Admin, form
-from selenium.common import NoSuchElementException
-from yarl import URL
 import uuid
 
 import requests
+from flask import Flask, render_template, request, send_from_directory, url_for
+from flask_admin import Admin, form
+from flask_admin.contrib import sqla
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from markupsafe import Markup
 from selenium import webdriver
+from selenium.common import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
+from sqlalchemy import func
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support import expected_conditions
-
-from markupsafe import Markup
+from yarl import URL
 
 db = SQLAlchemy()
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@postgres:5432/postgres'
 db.init_app(app)
 migrate = Migrate(app, db)
 admin = Admin(app, 'Transformers', template_mode='bootstrap4')
@@ -30,14 +28,12 @@ app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
 app.config['SECRET_KEY'] = '123456790'
 app.config['MEDIA_PATH'] = 'media'
 
-
 file_path = os.path.join(os.path.dirname(__file__), app.config['MEDIA_PATH'])
 
 try:
     os.mkdir(file_path)
 except OSError:
     pass
-
 
 transformations = db.Table(
     'transformations',
@@ -120,7 +116,22 @@ class ImageView(sqla.ModelView):
 
 @app.route('/')
 def get_transformer_list():  # put application's code here
-    transformers = db.session.execute(db.select(Transformer)).scalars()
+    name = request.args.get('name', None)
+    transformer_type = request.args.get('type', None)
+
+    query = db.select(Transformer)
+
+    if name:
+        print(name)
+        query = query.filter(func.lower(Transformer.name).contains(name.lower()))
+
+    if transformer_type:
+        print(transformer_type)
+        query = query.filter_by(type=transformer_type)
+
+    print(query)
+    transformers = db.session.execute(query).scalars()
+    print(transformers)
     return render_template('index.html', transformers=transformers)
 
 
