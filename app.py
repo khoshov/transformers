@@ -8,6 +8,8 @@ from flask_admin.contrib import sqla
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from markupsafe import Markup
+from psycopg2 import errors
+from loguru import logger
 from selenium import webdriver
 from selenium.common import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
@@ -19,7 +21,7 @@ from yarl import URL
 
 db = SQLAlchemy()
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@postgres:5432/postgres'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost:5432/postgres'
 db.init_app(app)
 migrate = Migrate(app, db)
 admin = Admin(app, 'Transformers', template_mode='bootstrap4')
@@ -201,15 +203,17 @@ def collect_transformers_data():
             with open(f"{product_image_dir}/{product_image_filename}", 'wb') as f:
                 f.write(product_image_content)
 
-            new_product = Product(
-                name=product_name,
-                image=product_image_filename,
-                url=product_url,
-                transformer=transformer.id,
-            )
-
-            db.session.add(new_product)
-            db.session.commit()
+            try:
+                new_product = Product(
+                    name=product_name,
+                    image=product_image_filename,
+                    url=product_url,
+                    transformer=transformer.id,
+                )
+                db.session.add(new_product)
+                db.session.commit()
+            except Exception as e:
+                logger.debug(e)
 
     driver.close()
 
