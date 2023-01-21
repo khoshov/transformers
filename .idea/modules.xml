@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/transformers.iml" filepath="$PROJECT_DIR$/.idea/transformers.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/transformers-app.iml" filepath="$PROJECT_DIR$/.idea/transformers-app.iml" />
     </modules>
   </component>
 </project>

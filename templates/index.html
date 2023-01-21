@@ -2,12 +2,37 @@
 
 {% block container %}
   <div class="row">
-    {% if request.args.get('name') %}
-      <h2>Результаты поиска по запросу: {{ request.args.get('name') }}</h2>
-    {% endif %}
+    <div class="col-lg-6">
+      <form>
+        <div class="input-group mb-3">
+          {% if request.args.get('name') %}
+            <input type="hidden" name="name" value="{{ request.args.get('name') }}">
+          {% endif %}
+          <label class="input-group-text" for="type">Выберите тип</label>
+          <select class="form-select" id="type" name="type">
+            <option {% if not request.args.get('type') %}selected{% endif %}>Любой</option>
+            {% for type in types %}
+              <option value="{{ type.id }}" {% if request.args.get('type')|int == type.id %}selected{% endif %}>{{ type.name }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-primary" type="submit">Применить фильтр</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if request.args.get('name') %}
+    <div class="row">
+      <div class="col">
+        <h2>Результаты поиска по запросу: {{ request.args.get('name') }}</h2>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="row">
     {% for transformer in transformers %}
       <div class="col-3 mt-3">
-        <a href="{{ url_for('get_transformer_detail', transformer_id=transformer.id) }}">
+        <a href="{{ url_for('transformers.get_transformer_detail', transformer_id=transformer.id) }}">
           <div class="card">
             <img src="{{ transformer.image_path }}" class="card-img-top" alt="{{ transformer.name }}">
             <div class="card-body">

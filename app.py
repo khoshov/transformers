@@ -1,222 +1,41 @@
-import os.path
-import uuid
-
-import requests
-from flask import Flask, render_template, request, send_from_directory, url_for
-from flask_admin import Admin, form
+from flask import Flask
 from flask_admin.contrib import sqla
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
-from markupsafe import Markup
-from psycopg2 import errors
-from loguru import logger
-from selenium import webdriver
-from selenium.common import NoSuchElementException
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.common.by import By
-from sqlalchemy import func
-from webdriver_manager.chrome import ChromeDriverManager
-from yarl import URL
 
-db = SQLAlchemy()
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost:5432/postgres'
-db.init_app(app)
-migrate = Migrate(app, db)
-admin = Admin(app, 'Transformers', template_mode='bootstrap4')
-
-app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
-app.config['SECRET_KEY'] = '123456790'
-app.config['MEDIA_PATH'] = 'media'
-
-file_path = os.path.join(os.path.dirname(__file__), app.config['MEDIA_PATH'])
-
-try:
-    os.mkdir(file_path)
-except OSError:
-    pass
-
-transformations = db.Table(
-    'transformations',
-    db.Column('transformer_id', db.Integer, db.ForeignKey('transformer.id'), primary_key=True),
-    db.Column('transformation_id', db.Integer, db.ForeignKey('transformation.id'), primary_key=True)
-)
+from admin import ImageView
+from extensions import admin, db, migrate
+from products.models import Product
+from transformers.models import Transformation, Transformer, TransformerType
+from . import contacts, core, transformers, commands
 
 
-class Transformation(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, unique=True, nullable=False)
-
-    def __repr__(self):
-        return self.name
-
-
-class TransformerType(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, unique=True, nullable=False)
-    transformers = db.relationship('Transformer', backref='types', lazy=True)
-
-    def __repr__(self):
-        return self.name
+def create_app(config_object="settings"):
+    app = Flask(__name__.split(".")[0])
+    app.config.from_object(config_object)
+    register_extensions(app)
+    register_blueprints(app)
+    register_commands(app)
+    register_admin()
+    return app
 
 
-class Transformer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, unique=True, nullable=False)
-    image = db.Column(db.String, nullable=False)
-    type = db.Column(db.Integer, db.ForeignKey('transformer_type.id'), nullable=False)
-    motto = db.Column(db.Text)
-    transformations = db.relationship(
-        'Transformation',
-        secondary=transformations,
-        lazy='subquery',
-        backref=db.backref('transformers', lazy=True)
-    )
-    products = db.relationship('Product', backref='transformers', lazy=True)
-
-    @property
-    def image_path(self):
-        return f'/{app.config["MEDIA_PATH"]}/{self.image}'
-
-    def __repr__(self):
-        return self.name
+def register_extensions(app):
+    db.init_app(app)
+    migrate.init_app(app, db)
+    admin.init_app(app)
 
 
-class Product(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, unique=True, nullable=False)
-    image = db.Column(db.String, nullable=False)
-    url = db.Column(db.String, nullable=False)
-    transformer = db.Column(db.Integer, db.ForeignKey('transformer.id'), nullable=False)
-
-    @property
-    def image_path(self):
-        return f'/{app.config["MEDIA_PATH"]}/{self.image}'
-
-    def __repr__(self):
-        return self.name
+def register_blueprints(app):
+    app.register_blueprint(contacts.views.blueprint)
+    app.register_blueprint(core.views.blueprint)
+    app.register_blueprint(transformers.views.blueprint)
 
 
-class ImageView(sqla.ModelView):
-    def _list_thumbnail(view, context, model, name):
-        if not model.image:
-            return ''
-
-        return Markup('<img src="%s">' % url_for('media', filename=form.thumbgen_filename(model.image)))
-
-    column_formatters = {
-        'image': _list_thumbnail
-    }
-
-    # Alternative way to contribute field is to override it completely.
-    # In this case, Flask-Admin won't attempt to merge various parameters for the field.
-    form_extra_fields = {
-        'image': form.ImageUploadField('Image', base_path=file_path, thumbnail_size=(100, 100, True))
-    }
+def register_commands(app):
+    app.cli.add_command(commands.collect_data)
 
 
-@app.route('/')
-def get_transformer_list():  # put application's code here
-    name = request.args.get('name', None)
-    transformer_type = request.args.get('type', None)
-
-    query = db.select(Transformer)
-
-    if name:
-        print(name)
-        query = query.filter(func.lower(Transformer.name).contains(name.lower()))
-
-    if transformer_type:
-        print(transformer_type)
-        query = query.filter_by(type=transformer_type)
-
-    print(query)
-    transformers = db.session.execute(query).scalars()
-    print(transformers)
-    return render_template('index.html', transformers=transformers)
-
-
-@app.route("/transformers/<int:transformer_id>")
-def get_transformer_detail(transformer_id):
-    transformer = db.get_or_404(Transformer, transformer_id)
-    return render_template("detail.html", transformer=transformer)
-
-
-@app.route("/contacts")
-def get_contacts():
-    return render_template("contacts.html")
-
-
-@app.route('/media/<path:filename>')
-def media(filename):
-    return send_from_directory(app.config['MEDIA_PATH'], filename)
-
-
-admin.add_view(ImageView(Transformer, db.session))
-admin.add_view(ImageView(Product, db.session))
-admin.add_view(sqla.ModelView(Transformation, db.session))
-admin.add_view(sqla.ModelView(TransformerType, db.session))
-
-
-@app.cli.command("collect-data")
-def collect_transformers_data():
-    transformers = db.session.execute(db.select(Transformer)).scalars()
-
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--window-size=1920x1080")
-
-    driver = webdriver.Chrome(
-        options=options,
-        service=ChromeService(ChromeDriverManager().install()),
-    )
-
-    base_url = URL("https://www.avito.ru")
-    region = "moskva_i_mo"
-    category = "tovary_dlya_detey_i_igrushki"
-
-    for transformer in transformers:
-        q = '+'.join(transformer.name.split())
-        url = base_url / region / category % {'cd': '1', 'q': q}
-
-        driver.get(str(url))
-
-        products = driver.find_elements(By.XPATH, "//*[@data-marker='item']")
-
-        for product in products:
-            product_link = product.find_element(By.XPATH, ".//*[@data-marker='item-title']")
-
-            try:
-                product_image = product.find_element(By.XPATH, ".//*[@data-marker='item-photo']//img")
-            except NoSuchElementException:
-                continue
-
-            product_url = product_link.get_attribute("href")
-            product_name = product_link.get_attribute("title")
-
-            product_image_url = product_image.get_attribute("src")
-            product_image_content = requests.get(product_image_url).content
-            product_image_dir = app.config['MEDIA_PATH']
-            product_image_filename = f'{uuid.uuid4().hex}.jpg'
-
-            with open(f"{product_image_dir}/{product_image_filename}", 'wb') as f:
-                f.write(product_image_content)
-
-            try:
-                new_product = Product(
-                    name=product_name,
-                    image=product_image_filename,
-                    url=product_url,
-                    transformer=transformer.id,
-                )
-                db.session.add(new_product)
-                db.session.commit()
-            except Exception as e:
-                logger.debug(e)
-
-    driver.close()
-
-
-if __name__ == '__main__':
-    app.run()
+def register_admin():
+    admin.add_view(ImageView(Transformer, db.session))
+    admin.add_view(ImageView(Product, db.session))
+    admin.add_view(sqla.ModelView(Transformation, db.session))
+    admin.add_view(sqla.ModelView(TransformerType, db.session))
