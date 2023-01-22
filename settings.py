@@ -4,7 +4,7 @@ from pathlib import Path
 from environs import Env
 
 env = Env()
-env.read_env()
+env.read_env('.env')
 
 ENV = env.str("FLASK_ENV", default="development")
 DEBUG = ENV == "development"

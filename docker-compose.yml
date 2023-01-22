@@ -16,6 +16,7 @@ services:
       - .env
     volumes:
       - .:/usr/src/app
+      - ./.wdm:/.wdm
     ports:
       - "5000:5000"
     depends_on:

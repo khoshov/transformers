@@ -12,5 +12,14 @@ build:
 build-no-cache:
 	docker-compose build --no-cache
 
+db-migrate:
+	$(PYTHON) -m flask db migrate -m "${m}"
+
 db-upgrade:
 	$(PYTHON) -m flask db upgrade
+
+collect-data:
+	$(PYTHON) -m flask collect-data
+
+help:
+	$(PYTHON) -m flask --help
